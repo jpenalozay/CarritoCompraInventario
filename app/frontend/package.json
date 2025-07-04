@@ -1,0 +1,37 @@
+{
+  "name": "ecommerce-analytics-dashboard",
+  "version": "1.0.0",
+  "description": "Dashboard para visualizar analytics de e-commerce",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.14.0",
+    "axios": "^1.4.0",
+    "recharts": "^2.7.2",
+    "antd": "^5.7.0",
+    "@ant-design/icons": "^5.1.4",
+    "moment": "^2.29.4",
+    "lodash": "^4.17.21",
+    "react-query": "^3.39.3"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.15",
+    "@types/react-dom": "^18.2.7",
+    "@vitejs/plugin-react": "^4.0.3",
+    "eslint": "^8.45.0",
+    "eslint-plugin-react": "^7.32.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.3",
+    "vite": "^4.4.5"
+  },
+  "keywords": ["ecommerce", "analytics", "dashboard", "react", "vite"],
+  "author": "Tu Nombre",
+  "license": "MIT"
+} 

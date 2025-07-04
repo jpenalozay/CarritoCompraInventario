@@ -1,45 +1,27 @@
-version: '3.8'
-
 services:
   # ========================================
-  # CASSANDRA CLUSTER (Single Node for Development)
+  # CASSANDRA
   # ========================================
   cassandra:
     image: cassandra:4.1
     container_name: ecommerce-cassandra
     hostname: cassandra
     ports:
-      - "9042:9042"  # CQL Native Protocol
-      - "9160:9160"  # Thrift (legacy)
-      - "7000:7000"  # Inter-node communication
-      - "7001:7001"  # TLS inter-node
-      - "7199:7199"  # JMX
+      - "9042:9042"
+      - "7199:7199"
     environment:
-      # Cluster configuration
       - CASSANDRA_CLUSTER_NAME=EcommerceCluster
       - CASSANDRA_DC=datacenter1
       - CASSANDRA_RACK=rack1
-      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
-      
-      # Memory settings (adjust based on your RAM)
-      - MAX_HEAP_SIZE=1G
-      - HEAP_NEWSIZE=200M
+      - MAX_HEAP_SIZE=512M
+      - HEAP_NEWSIZE=100M
       - CASSANDRA_NUM_TOKENS=16
-      
-      # Development settings
       - CASSANDRA_SEEDS=cassandra
       - CASSANDRA_START_NATIVE_TRANSPORT=true
       - CASSANDRA_START_RPC=true
     volumes:
-      # Persistent data storage
-      - ./data/cassandra:/var/lib/cassandra
-      
-      # Configuration files
-      #- ./cassandra/config/cassandra.yaml:/etc/cassandra/cassandra.yaml:ro
-      
-      # Schema initialization scripts
+      - cassandra-data:/var/lib/cassandra
       - ./cassandra/schemas:/opt/cassandra/schemas:ro
-      - ./cassandra/scripts:/opt/cassandra/scripts:ro
     networks:
       - ecommerce-network
     healthcheck:
@@ -47,11 +29,77 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 60s
+      start_period: 120s
     restart: unless-stopped
 
   # ========================================
-  # CASSANDRA WEB UI (Opcional para development)
+  # REDIS CACHE CLUSTER
+  # ========================================
+  redis:
+    image: redis:7-alpine
+    container_name: ecommerce-redis
+    hostname: redis
+    ports:
+      - "6379:6379"  # Redis default port
+    command: >
+      redis-server 
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --appendfsync everysec
+      --save 900 1 300 10 60 10000
+      --tcp-keepalive 300
+      --timeout 0
+      --tcp-backlog 511
+      --databases 16
+    environment:
+      - REDIS_PASSWORD=ecommerce123  # Opcional para desarrollo
+      - REDIS_PORT=6379
+    volumes:
+      # Persistent storage para durabilidad
+      - redis-data:/data
+      
+      # Configuration file (opcional)
+      - ./redis/config/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      - ecommerce-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # ========================================
+  # REDIS COMMANDER (Web UI para Redis)
+  # ========================================
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: redis-commander
+    hostname: redis-commander
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+      - REDIS_PASSWORD=ecommerce123
+      - HTTP_USER=admin
+      - HTTP_PASSWORD=admin123
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+  # ========================================
+  # CASSANDRA WEB UI
   # ========================================
   cassandra-web:
     image: ipushc/cassandra-web
@@ -73,10 +121,9 @@ services:
 networks:
   ecommerce-network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
 
 volumes:
   cassandra-data:
+    driver: local
+  redis-data:
     driver: local
