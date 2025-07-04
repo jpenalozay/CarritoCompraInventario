@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  # ========================================
+  # CASSANDRA CLUSTER (Single Node for Development)
+  # ========================================
+  cassandra:
+    image: cassandra:4.1
+    container_name: ecommerce-cassandra
+    hostname: cassandra
+    ports:
+      - "9042:9042"  # CQL Native Protocol
+      - "9160:9160"  # Thrift (legacy)
+      - "7000:7000"  # Inter-node communication
+      - "7001:7001"  # TLS inter-node
+      - "7199:7199"  # JMX
+    environment:
+      # Cluster configuration
+      - CASSANDRA_CLUSTER_NAME=EcommerceCluster
+      - CASSANDRA_DC=datacenter1
+      - CASSANDRA_RACK=rack1
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+      
+      # Memory settings (adjust based on your RAM)
+      - MAX_HEAP_SIZE=1G
+      - HEAP_NEWSIZE=200M
+      - CASSANDRA_NUM_TOKENS=16
+      
+      # Development settings
+      - CASSANDRA_SEEDS=cassandra
+      - CASSANDRA_START_NATIVE_TRANSPORT=true
+      - CASSANDRA_START_RPC=true
+    volumes:
+      # Persistent data storage
+      - ./data/cassandra:/var/lib/cassandra
+      
+      # Configuration files
+      #- ./cassandra/config/cassandra.yaml:/etc/cassandra/cassandra.yaml:ro
+      
+      # Schema initialization scripts
+      - ./cassandra/schemas:/opt/cassandra/schemas:ro
+      - ./cassandra/scripts:/opt/cassandra/scripts:ro
+    networks:
+      - ecommerce-network
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'describe cluster'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  # ========================================
+  # CASSANDRA WEB UI (Opcional para development)
+  # ========================================
+  cassandra-web:
+    image: ipushc/cassandra-web
+    container_name: cassandra-web-ui
+    ports:
+      - "3000:3000"
+    environment:
+      - CASSANDRA_HOST=cassandra
+      - CASSANDRA_PORT=9042
+      - CASSANDRA_USER=cassandra
+      - CASSANDRA_PASSWORD=cassandra
+    depends_on:
+      cassandra:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+networks:
+  ecommerce-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  cassandra-data:
+    driver: local
