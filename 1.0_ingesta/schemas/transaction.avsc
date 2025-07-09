@@ -1,0 +1,16 @@
+{
+  "type": "record",
+  "name": "Transaction",
+  "namespace": "com.ecommerce",
+  "fields": [
+    {"name": "invoice_no", "type": "string"},
+    {"name": "stock_code", "type": "string"},
+    {"name": "description", "type": "string"},
+    {"name": "quantity", "type": "int"},
+    {"name": "invoice_date", "type": "long"},
+    {"name": "unit_price", "type": "double"},
+    {"name": "customer_id", "type": "string"},
+    {"name": "country", "type": "string"},
+    {"name": "total_amount", "type": "double"}
+  ]
+} 

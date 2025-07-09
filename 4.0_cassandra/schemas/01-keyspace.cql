@@ -1,0 +1,19 @@
+-- ========================================
+-- KEYSPACE CREATION
+-- ========================================
+
+-- Drop keyspace if exists (for development)
+DROP KEYSPACE IF EXISTS ecommerce_analytics;
+
+-- Create keyspace
+CREATE KEYSPACE IF NOT EXISTS ecommerce_analytics
+WITH replication = {
+    'class': 'SimpleStrategy',
+    'replication_factor': 1
+};
+
+-- Use the keyspace
+USE ecommerce_analytics;
+
+-- Verify keyspace creation
+DESCRIBE KEYSPACE ecommerce_analytics;

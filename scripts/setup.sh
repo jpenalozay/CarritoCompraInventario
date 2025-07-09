@@ -18,8 +18,8 @@ sleep 60
 
 # Initialize schemas
 echo "📊 Creating database schemas..."
-docker exec -i ecommerce-cassandra cqlsh < cassandra/schemas/01-keyspace.cql
-docker exec -i ecommerce-cassandra cqlsh < cassandra/schemas/02-tables.cql
+docker exec -i ecommerce-cassandra cqlsh < 4.0_cassandra/schemas/01-keyspace.cql
+docker exec -i ecommerce-cassandra cqlsh < 4.0_cassandra/schemas/02-tables.cql
 
 # Start web UI
 echo "🌐 Starting Cassandra Web UI..."
