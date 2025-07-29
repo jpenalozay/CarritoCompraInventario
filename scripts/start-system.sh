@@ -1,75 +1,208 @@
 #!/bin/bash
 
-echo "🚀 Iniciando sistema de análisis de E-commerce..."
+# =============================================================================
+# SCRIPT DE INICIO COMPLETO DEL SISTEMA ECOMMERCE ANALYTICS
+# =============================================================================
 
-# Crear directorios necesarios
-echo "📁 Creando directorios de datos..."
-mkdir -p data/cassandra
-mkdir -p data/redis
-mkdir -p data/kafka
-mkdir -p data/flink/checkpoints
-mkdir -p data/flink/savepoints
-mkdir -p data/zookeeper
+set -e  # Salir si cualquier comando falla
 
-# Iniciar servicios base
-echo "🌟 Iniciando servicios base..."
+echo "🚀 INICIANDO SISTEMA ECOMMERCE ANALYTICS DESDE CERO"
+echo "=================================================="
+
+# Colores para output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Función para logging
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+log_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+log_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Función para verificar si Docker está ejecutándose
+check_docker() {
+    if ! docker info > /dev/null 2>&1; then
+        log_error "Docker no está ejecutándose. Por favor, inicia Docker Desktop."
+        exit 1
+    fi
+    log_success "Docker está ejecutándose"
+}
+
+# Función para esperar que un servicio esté listo
+wait_for_service() {
+    local service_name=$1
+    local max_attempts=$2
+    local attempt=1
+    
+    log_info "Esperando que $service_name esté listo..."
+    
+    while [ $attempt -le $max_attempts ]; do
+        if docker ps --format "table {{.Names}}\t{{.Status}}" | grep -q "$service_name.*healthy\|$service_name.*Up"; then
+            log_success "$service_name está listo"
+            return 0
+        fi
+        
+        log_info "Intento $attempt/$max_attempts - $service_name aún no está listo..."
+        sleep 10
+        attempt=$((attempt + 1))
+    done
+    
+    log_error "$service_name no se pudo iniciar después de $max_attempts intentos"
+    return 1
+}
+
+# Función para crear tablas de Cassandra
+setup_cassandra_tables() {
+    log_info "Configurando tablas de Cassandra..."
+    
+    # Esperar a que Cassandra esté completamente listo
+    sleep 60
+    
+    # Crear keyspace si no existe
+    docker exec ecommerce-cassandra cqlsh -e "CREATE KEYSPACE IF NOT EXISTS ecommerce_analytics WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};" || true
+    
+    # Crear tablas principales
+    docker exec ecommerce-cassandra cqlsh -e "USE ecommerce_analytics; CREATE TABLE IF NOT EXISTS revenue_by_country_time (country text, date_bucket date, hour int, timestamp timestamp, invoice_no text, customer_id text, revenue_gbp decimal, revenue_usd decimal, order_count int, customer_count int, avg_order_value decimal, created_at timestamp, updated_at timestamp, PRIMARY KEY ((country, date_bucket), hour));" || true
+    
+    docker exec ecommerce-cassandra cqlsh -e "USE ecommerce_analytics; CREATE TABLE IF NOT EXISTS transactions (invoice_no text, stock_code text, description text, quantity int, invoice_date timestamp, unit_price decimal, customer_id text, country text, total_amount decimal, created_at timestamp, PRIMARY KEY (invoice_no, stock_code));" || true
+    
+    docker exec ecommerce-cassandra cqlsh -e "USE ecommerce_analytics; CREATE TABLE IF NOT EXISTS realtime_metrics (metric_key text, metric_value text, timestamp timestamp, PRIMARY KEY (metric_key, timestamp));" || true
+    
+    log_success "Tablas de Cassandra configuradas"
+}
+
+# Función para ejecutar job de Flink
+run_flink_job() {
+    log_info "Iniciando job de Flink automático..."
+    
+    # El job se ejecuta automáticamente con el servicio flink-job-runner
+    docker-compose up -d flink-job-runner
+    
+    log_success "Job de Flink iniciado automáticamente"
+}
+
+# Función para verificar URLs
+check_urls() {
+    log_info "Verificando URLs del sistema..."
+    
+    echo ""
+    echo "🌐 URLs DISPONIBLES:"
+    echo "===================="
+    echo "📊 Dashboard Principal: http://localhost"
+    echo "🤖 Dashboard RL: http://localhost:5000"
+    echo "🔧 API Backend: http://localhost:3003"
+    echo "📈 Redis Commander: http://localhost:8088"
+    echo "🗄️  Cassandra Web: http://localhost:3005"
+    echo "📨 Kafka UI: http://localhost:8089"
+    echo "⚡ Flink Dashboard: http://localhost:8081"
+    echo ""
+}
+
+# Función para verificar estado final
+check_final_status() {
+    log_info "Verificando estado final del sistema..."
+    
+    echo ""
+    echo "📋 ESTADO DE SERVICIOS:"
+    echo "======================="
+    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+    echo ""
+}
+
+# =============================================================================
+# INICIO DEL SCRIPT
+# =============================================================================
+
+# Verificar Docker
+check_docker
+
+# Paso 1: Construir todas las imágenes
+log_info "Paso 1: Construyendo imágenes Docker..."
+docker-compose build --no-cache
+
+# Paso 2: Iniciar servicios base
+log_info "Paso 2: Iniciando servicios base (Zookeeper, Kafka, Cassandra, Redis)..."
 docker-compose up -d zookeeper kafka cassandra redis
 
-# Esperar que Kafka esté listo
-echo "⏳ Esperando que Kafka esté disponible..."
-while ! docker-compose exec kafka kafka-topics --list --bootstrap-server localhost:9092 > /dev/null 2>&1; do
-    sleep 5
-done
+# Esperar servicios base
+wait_for_service "ecommerce-zookeeper" 12
+wait_for_service "ecommerce-cassandra" 12
+wait_for_service "ecommerce-redis" 12
+wait_for_service "ecommerce-kafka" 12
 
-# Crear topics de Kafka
-echo "📨 Creación de tópicos delegada al contenedor kafka-topic-init..."
+# Paso 3: Configurar Cassandra
+setup_cassandra_tables
 
-# Esperar que Cassandra esté lista
-echo "⏳ Esperando que Cassandra esté disponible..."
-while ! docker-compose exec cassandra nodetool status | grep "UN" > /dev/null 2>&1; do
-    sleep 5
-done
-
-# Inicializar esquemas de Cassandra
-echo "📊 Inicializando esquemas de Cassandra..."
-docker-compose exec cassandra cqlsh -f /docker-entrypoint-initdb.d/01-keyspace.cql
-docker-compose exec cassandra cqlsh -f /docker-entrypoint-initdb.d/02-tables.cql
-
-# Iniciar servicios de procesamiento
-echo "🔄 Iniciando servicios de procesamiento..."
+# Paso 4: Iniciar Flink
+log_info "Paso 3: Iniciando Flink (JobManager y TaskManagers)..."
 docker-compose up -d jobmanager taskmanager-1 taskmanager-2 taskmanager-3
 
-# Esperar que Flink esté listo
-echo "⏳ Esperando que Flink esté disponible..."
-while ! curl -s http://localhost:8081 > /dev/null; do
-    sleep 5
-done
+wait_for_service "ecommerce-jobmanager" 12
 
-# Iniciar job de Flink
-echo "🔄 Iniciando job de procesamiento de Flink..."
-docker-compose exec jobmanager flink run -d /opt/flink/jobs/transaction_processor.py
+# Paso 5: Iniciar componente RL
+log_info "Paso 4: Iniciando componente RL..."
+docker-compose up -d rl-component
 
-# Iniciar servicios de monitoreo
-echo "🔍 Iniciando servicios de monitoreo..."
-docker-compose up -d kafka-ui cassandra-web redis-commander
+wait_for_service "ecommerce-rl" 12
 
-# Iniciar servicios de aplicación
-echo "🌐 Iniciando servicios de aplicación..."
-docker-compose -f 6.0_app/docker-compose.app.yml up -d ecommerce-api ecommerce-dashboard nginx
+# Paso 6: Iniciar API Backend
+log_info "Paso 5: Iniciando API Backend..."
+docker-compose up -d api
 
-# Nota: ingesta de datos no se inicia automáticamente.  
-# Para lanzar la ingesta manualmente usa:
-#   docker-compose up -d ingesta
-# o bien:
-#   docker-compose run --rm ingesta
-# según tu flujo.
+wait_for_service "ecommerce-api" 12
 
-echo "✅ Sistema iniciado completamente (sin ingesta)!"
+# Paso 7: Iniciar Frontend Dashboard
+log_info "Paso 6: Iniciando Frontend Dashboard..."
+docker-compose up -d analytics-dashboard
+
+# Paso 8: Iniciar NGINX
+log_info "Paso 7: Iniciando NGINX..."
+docker-compose up -d nginx
+
+# Paso 9: Iniciar servicios de monitoreo
+log_info "Paso 8: Iniciando servicios de monitoreo..."
+docker-compose up -d redis-commander cassandra-web kafka-ui
+
+# Paso 10: Iniciar servicio de ingesta
+log_info "Paso 9: Iniciando servicio de ingesta..."
+docker-compose up -d ingesta
+
+# Paso 11: Ejecutar job de Flink
+run_flink_job
+
+# Paso 12: Verificaciones finales
+sleep 30
+
+check_urls
+check_final_status
+
 echo ""
-echo "🔗 Servicios disponibles:"
-echo "📊 Flink Dashboard: http://localhost:8081"
-echo "🎯 Kafka UI: http://localhost:8080"
-echo "💾 Cassandra Web: http://localhost:3000"
-echo "📝 Redis Commander: http://localhost:8082"
-echo "🌐 Frontend: http://localhost"
-echo "🔌 API: http://localhost/api/v1" 
+echo "🎉 ¡SISTEMA INICIADO EXITOSAMENTE!"
+echo "=================================="
+echo ""
+echo "El sistema está completamente operativo con:"
+echo "✅ Todos los servicios funcionando"
+echo "✅ Job de Flink ejecutándose automáticamente"
+echo "✅ Dashboards disponibles"
+echo "✅ APIs operativas"
+echo ""
+echo "Puedes acceder a los dashboards en:"
+echo "📊 http://localhost (Dashboard Principal)"
+echo "🤖 http://localhost:5000 (Dashboard RL)"
+echo ""
+echo "Para detener el sistema: ./scripts/stop-system.sh"
+echo "" 

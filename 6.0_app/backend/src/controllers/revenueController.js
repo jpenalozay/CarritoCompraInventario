@@ -13,7 +13,7 @@ class RevenueController {
             // Validación de parámetros
             const schema = Joi.object({
                 country: Joi.string().required().min(2).max(50),
-                startDate: Joi.date().iso().default('2011-01-01'),
+                startDate: Joi.date().iso().default('2010-12-01'),
                 endDate: Joi.date().iso().default('2011-12-31'),
                 useCache: Joi.boolean().default(true)
             });
@@ -43,12 +43,12 @@ class RevenueController {
                 });
             }
 
-            // Validar que el rango no exceda 90 días
+            // Validar que el rango no exceda 2 años (para datos históricos)
             const daysDiff = moment(endDate).diff(moment(startDate), 'days');
-            if (daysDiff > 90) {
+            if (daysDiff > 730) {
                 return res.status(400).json({
                     success: false,
-                    error: 'El rango de fechas no puede exceder 90 días'
+                    error: 'El rango de fechas no puede exceder 2 años'
                 });
             }
 
@@ -95,7 +95,7 @@ class RevenueController {
     async getRevenueSummary(req, res) {
         try {
             const schema = Joi.object({
-                startDate: Joi.date().iso().default('2011-01-01'),
+                startDate: Joi.date().iso().default('2010-12-01'),
                 endDate: Joi.date().iso().default('2011-12-31'),
                 useCache: Joi.boolean().default(true)
             });

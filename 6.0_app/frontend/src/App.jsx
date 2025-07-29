@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, Card, Row, Col, Statistic, Table, Select, DatePicker, Spin, Alert } from 'antd';
+import { Layout, Menu, Card, Row, Col, Statistic, Table, Select, DatePicker, Spin, Alert, Button } from 'antd';
 import { 
   DollarCircleOutlined, 
   ShoppingCartOutlined, 
   UserOutlined, 
   GlobalOutlined,
   LineChartOutlined,
-  DatabaseOutlined
+  DatabaseOutlined,
+  RobotOutlined
 } from '@ant-design/icons';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import moment from 'moment';
@@ -25,8 +26,8 @@ const App = () => {
   const [loading, setLoading] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState('United Kingdom');
   const [dateRange, setDateRange] = useState([
-    moment().subtract(7, 'days'),
-    moment()
+    moment('2011-07-15'),
+    moment('2011-07-22')
   ]);
   const [activeTab, setActiveTab] = useState('dashboard');
 
@@ -49,35 +50,63 @@ const App = () => {
   useEffect(() => {
     if (selectedCountry && dateRange) {
       loadRevenueData();
+      loadDashboardData(); // También recargar el dashboard cuando cambie el rango de fechas
     }
   }, [selectedCountry, dateRange]);
 
   // Función para cargar países disponibles
   const loadCountries = async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/revenue/countries`);
-      setDashboardData(prev => ({
-        ...prev,
-        countries: response.data.data.countries
-      }));
-    } catch (error) {
-      console.error('Error loading countries:', error);
-    }
+    // Los países se cargan automáticamente con loadDashboardData()
+    // desde el endpoint realtime que sí funciona
   };
 
   // Función para cargar datos del dashboard
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const [summaryRes, realtimeRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}/revenue/summary`),
-        axios.get(`${API_BASE_URL}/revenue/realtime`)
-      ]);
+      // TEMPORAL: Solo usar realtime que sí funciona
+      const realtimeRes = await axios.get(`${API_BASE_URL}/revenue/realtime`);
+      
+      // Extraer datos del realtime para calcular totales
+      const realtimeData = realtimeRes.data.data;
+      
+      // Calcular totales desde realtime
+      let totalRevenueGBP = 0;
+      let totalOrders = 0;
+      let totalCustomers = 0;
+      const countries = Object.keys(realtimeData.data || {});
+      
+      countries.forEach(country => {
+        const countryData = realtimeData.data[country];
+        totalRevenueGBP += countryData.revenue?.gbp || 0;
+        totalOrders += countryData.orders || 0;
+        totalCustomers += countryData.customers || 0;
+      });
+
+      // Estructura compatible con el dashboard
+      const summary = {
+        globalSummary: {
+          totalRevenueGBP: totalRevenueGBP,
+          totalOrders: totalOrders,
+          totalCustomers: totalCustomers
+        },
+        metadata: {
+          totalCountries: countries.length
+        }
+      };
 
       setDashboardData(prev => ({
         ...prev,
-        summary: summaryRes.data.data,
-        realtime: realtimeRes.data.data
+        summary: summary,
+        realtime: {
+          data: realtimeData.data,
+          summary: {
+            totalRevenueGBP: totalRevenueGBP,
+            totalOrders: totalOrders,
+            countriesActive: countries.length
+          }
+        },
+        countries: countries,  // Mantener como array de strings, no objetos
       }));
       setError(null);
     } catch (error) {
@@ -177,6 +206,11 @@ const App = () => {
       key: 'realtime',
       icon: <DatabaseOutlined />,
       label: 'Real-time Metrics'
+    },
+    {
+      key: 'rl',
+      icon: <RobotOutlined />,
+      label: 'AI Recommendations'
     }
   ];
 
@@ -320,6 +354,43 @@ const App = () => {
     </div>
   );
 
+  const renderRLDashboard = () => (
+    <div>
+      <Card title="🤖 AI Recommendations - Reinforcement Learning" style={{ marginBottom: 24 }}>
+        <Alert
+          message="Dashboard de RL"
+          description="El dashboard completo de Reinforcement Learning está disponible en una ventana separada. Haz clic en el botón para abrirlo."
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+        
+        <Row gutter={16}>
+          <Col span={12}>
+            <Card title="📊 Estado del Agente RL">
+              <p><strong>Q-Table Size:</strong> <span id="rl-q-table-size">Cargando...</span></p>
+              <p><strong>Epsilon:</strong> <span id="rl-epsilon">Cargando...</span></p>
+              <p><strong>Learning Rate:</strong> <span id="rl-learning-rate">Cargando...</span></p>
+              <p><strong>Current Episode:</strong> <span id="rl-episode">Cargando...</span></p>
+            </Card>
+          </Col>
+          <Col span={12}>
+            <Card title="🛍️ Generar Recomendaciones">
+              <p>Prueba el sistema de recomendaciones inteligente:</p>
+              <Button 
+                type="primary" 
+                onClick={() => window.open('http://localhost:8050', '_blank')}
+                icon={<RobotOutlined />}
+              >
+                Abrir Dashboard RL Completo
+              </Button>
+            </Card>
+          </Col>
+        </Row>
+      </Card>
+    </div>
+  );
+
   const renderContent = () => {
     if (loading) {
       return (
@@ -349,6 +420,8 @@ const App = () => {
         return renderRevenueAnalysis();
       case 'realtime':
         return renderDashboard(); // Por ahora usa el mismo componente
+      case 'rl':
+        return renderRLDashboard();
       default:
         return renderDashboard();
     }
