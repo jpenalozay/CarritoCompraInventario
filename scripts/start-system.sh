@@ -6,6 +6,12 @@
 
 set -e  # Salir si cualquier comando falla
 
+# Cargar variables de entorno si existe el archivo de configuración
+if [ -f "../config/urls.env" ]; then
+    echo "📋 Cargando configuración de URLs..."
+    export $(cat ../config/urls.env | grep -v '^#' | xargs)
+fi
+
 echo "🚀 INICIANDO SISTEMA ECOMMERCE ANALYTICS DESDE CERO"
 echo "=================================================="
 
@@ -102,13 +108,13 @@ check_urls() {
     echo ""
     echo "🌐 URLs DISPONIBLES:"
     echo "===================="
-    echo "📊 Dashboard Principal: http://localhost"
-    echo "🤖 Dashboard RL: http://localhost:5000"
-    echo "🔧 API Backend: http://localhost:3003"
-    echo "📈 Redis Commander: http://localhost:8088"
-    echo "🗄️  Cassandra Web: http://localhost:3005"
-    echo "📨 Kafka UI: http://localhost:8089"
-    echo "⚡ Flink Dashboard: http://localhost:8081"
+    echo "📊 Dashboard Principal: ${MAIN_DASHBOARD_URL:-http://localhost}"
+    echo "🤖 Dashboard RL: ${RL_DASHBOARD_URL:-http://localhost:8050}"
+    echo "🔧 API Backend: ${API_BASE_URL:-http://localhost:3003/api/v1}"
+    echo "📈 Redis Commander: ${REDIS_COMMANDER_URL:-http://localhost:8088}"
+    echo "🗄️  Cassandra Web: ${CASSANDRA_WEB_URL:-http://localhost:3005}"
+    echo "📨 Kafka UI: ${KAFKA_UI_URL:-http://localhost:8089}"
+    echo "⚡ Flink Dashboard: ${FLINK_DASHBOARD_URL:-http://localhost:8081}"
     echo ""
 }
 

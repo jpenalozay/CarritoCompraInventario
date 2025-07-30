@@ -172,21 +172,26 @@ class RevenueService {
             }
 
             // Obtener datos de Redis
-            const client = redisConnection.getClient('metrics');
+            const client = redisConnection.getClient('apiCache');
             
             // Buscar todas las claves de países
             const countryKeys = await client.KEYS('analytics:country:*'); // Cambio de keys a KEYS
+            console.log('🔍 DEBUG: Raw country keys:', countryKeys);
             const countries = countryKeys.map(key => key.replace('analytics:country:', ''));
+            console.log('🔍 DEBUG: Found countries:', countries);
             
             const summaryByCountry = {};
             let allRecords = [];
             
             for (const country of countries) {
                 try {
+                    console.log(`🔍 DEBUG: Processing country: ${country}`);
                     const countryData = await this._getRevenueFromRedis(country, effectiveStart, effectiveEnd, startDate, endDate);
+                    console.log(`🔍 DEBUG: Country data for ${country}:`, countryData ? 'found' : 'not found');
                     if (countryData && countryData.data.length > 0) {
                         summaryByCountry[country] = countryData.summary;
                         allRecords = allRecords.concat(countryData.data);
+                        console.log(`🔍 DEBUG: Added ${country} to summary`);
                     }
                 } catch (error) {
                     console.error(`Error getting data for ${country}:`, error);
@@ -219,6 +224,8 @@ class RevenueService {
             }
 
             console.log(`📊 Revenue summary: ${Object.keys(summaryByCountry).length} countries, ${allRecords.length} records`);
+            console.log('🔍 DEBUG: Final summaryByCountry:', Object.keys(summaryByCountry));
+            console.log('🔍 DEBUG: Final allRecords length:', allRecords.length);
             return responseData;
 
         } catch (error) {
@@ -287,7 +294,7 @@ class RevenueService {
      */
     async getAvailableCountries() {
         try {
-            const client = redisConnection.getClient('metrics');
+            const client = redisConnection.getClient('apiCache');
             const countryKeys = await client.KEYS('analytics:country:*'); // Cambio de keys a KEYS
             const countries = countryKeys.map(key => key.replace('analytics:country:', ''));
             
@@ -301,13 +308,14 @@ class RevenueService {
     // Métodos helper privados
     _calculateSummary(rows) {
         if (!rows || rows.length === 0) {
-            return { totalRevenue: 0, totalOrders: 0, avgOrderValue: 0 };
+            return { totalRevenueGBP: 0, totalRevenueUSD: 0, totalOrders: 0, uniqueCustomers: 0, avgOrderValue: 0 };
         }
 
-        const totalRevenueGBP = rows.reduce((sum, row) => sum + (parseFloat(row.revenue_gbp) || 0), 0);
-        const totalRevenueUSD = rows.reduce((sum, row) => sum + (parseFloat(row.revenue_usd) || 0), 0);
-        const totalOrders = rows.reduce((sum, row) => sum + (row.order_count || 0), 0);
-        const uniqueCustomers = new Set(rows.map(row => row.customer_id)).size;
+        const totalRevenueGBP = rows.reduce((sum, row) => sum + (parseFloat(row.revenueGBP) || 0), 0);
+        const totalRevenueUSD = rows.reduce((sum, row) => sum + (parseFloat(row.revenueUSD) || 0), 0);
+        const totalOrders = rows.reduce((sum, row) => sum + (row.orderCount || 0), 0);
+        // Calcular uniqueCustomers basado en customerCount de los datos agregados
+        const uniqueCustomers = rows.reduce((sum, row) => sum + (row.customerCount || 0), 0);
 
         return {
             totalRevenueGBP: Math.round(totalRevenueGBP * 100) / 100,

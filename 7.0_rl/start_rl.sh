@@ -16,12 +16,13 @@ python /app/src/init_rl_tables.py
 
 # Generar datos de inventario si no existen
 echo "📦 Generando datos de inventario..."
-python /app/src/inventory_api.py --generate-data &
+INVENTORY_API_PORT=5001 python /app/src/inventory_api.py --generate-data &
+sleep 5
 
 # Iniciar API RL de INVENTARIOS en background
 echo "🌐 Iniciando API de RL de INVENTARIOS..."
 cd /app/src
-python inventory_api.py &
+python rl_api.py &
 RL_API_PID=$!
 
 # Esperar a que la API esté lista
