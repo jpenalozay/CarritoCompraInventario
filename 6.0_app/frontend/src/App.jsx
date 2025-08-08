@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Layout, Menu, Card, Row, Col, Statistic, Table, DatePicker, Select, Button, Alert, Spin } from 'antd';
-import { LineChartOutlined, DollarCircleOutlined, DatabaseOutlined, RobotOutlined, ShoppingCartOutlined, UserOutlined, GlobalOutlined } from '@ant-design/icons';
+import { LineChartOutlined, DollarCircleOutlined, DatabaseOutlined, RobotOutlined, ShoppingCartOutlined, UserOutlined, GlobalOutlined, InboxOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import moment from 'moment';
 
@@ -12,6 +12,7 @@ const { Option } = Select;
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3003/api/v1';
 const RL_API_URL = import.meta.env.VITE_RL_API_URL || 'http://localhost:5000/api/v1';
 const RL_DASHBOARD_URL = import.meta.env.VITE_RL_DASHBOARD_URL || 'http://localhost:8050';
+const INVENTORY_DASHBOARD_URL = import.meta.env.VITE_INVENTORY_DASHBOARD_URL || 'http://localhost:8051';
 
 const App = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -31,11 +32,24 @@ const App = () => {
     learning_rate: 'Cargando...',
     current_episode: 'Cargando...'
   });
+  const [inventoryData, setInventoryData] = useState({
+    service_level: 'Cargando...',
+    turnover: 'Cargando...',
+    critical_products: 'Cargando...',
+    estimated_savings: 'Cargando...'
+  });
 
   // Cargar datos del RL cuando el componente se monte
   useEffect(() => {
     if (activeTab === 'rl') {
       loadRLData();
+    }
+  }, [activeTab]);
+
+  // Cargar datos de inventario cuando se seleccione la pestaña
+  useEffect(() => {
+    if (activeTab === 'inventory') {
+      loadInventoryData();
     }
   }, [activeTab]);
 
@@ -248,6 +262,29 @@ const App = () => {
     }
   };
 
+  const loadInventoryData = async () => {
+    try {
+      const response = await axios.get('http://localhost:5001/api/v1/inventory/metrics');
+      if (response.data.success) {
+        const data = response.data.data;
+        setInventoryData({
+          service_level: `${(data.business_metrics?.service_level || 0) * 100}%`,
+          turnover: `${data.business_metrics?.avg_inventory_turnover || 0}x`,
+          critical_products: '12', // Simulado por ahora
+          estimated_savings: `$${(data.cost_optimization?.estimated_savings || 0).toLocaleString()}`
+        });
+      }
+    } catch (error) {
+      console.error('Error cargando datos de inventario:', error);
+      setInventoryData({
+        service_level: 'Error',
+        turnover: 'Error',
+        critical_products: 'Error',
+        estimated_savings: 'Error'
+      });
+    }
+  };
+
   // Preparar datos para gráficos - filtrar por país seleccionado
   const chartData = Object.entries(dashboardData.revenue || {})
     .filter(([country, data]) => {
@@ -323,6 +360,11 @@ const App = () => {
       key: 'rl',
       icon: <RobotOutlined />,
       label: 'AI Recommendations'
+    },
+    {
+      key: 'inventory',
+      icon: <InboxOutlined />,
+      label: 'Inventarios'
     }
   ];
 
@@ -531,6 +573,45 @@ const App = () => {
     );
   };
 
+  const renderInventoryDashboard = () => {
+    return (
+      <div>
+        <Card title="📦 Gestión Inteligente de Inventarios" style={{ marginBottom: 24 }}>
+          <Alert
+            message="Dashboard de Inventarios"
+            description="El sistema de RL para gestión de inventarios está disponible en una ventana separada. Haz clic en el botón para abrirlo."
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
+          
+          <Row gutter={16}>
+            <Col span={12}>
+              <Card title="📊 Métricas de Inventario">
+                <p><strong>Nivel de Servicio:</strong> <span id="inventory-service-level">{inventoryData.service_level}</span></p>
+                <p><strong>Rotación de Inventario:</strong> <span id="inventory-turnover">{inventoryData.turnover}</span></p>
+                <p><strong>Productos Críticos:</strong> <span id="inventory-critical">{inventoryData.critical_products}</span></p>
+                <p><strong>Ahorros Estimados:</strong> <span id="inventory-savings">{inventoryData.estimated_savings}</span></p>
+              </Card>
+            </Col>
+            <Col span={12}>
+              <Card title="🛍️ Gestión de Inventarios">
+                <p>Prueba el sistema de gestión inteligente de inventarios:</p>
+                <Button 
+                  type="primary" 
+                  onClick={() => window.open(INVENTORY_DASHBOARD_URL, '_blank')}                  
+                  icon={<InboxOutlined />}
+                >
+                  Abrir Dashboard de Inventarios
+                </Button>
+              </Card>
+            </Col>
+          </Row>
+        </Card>
+      </div>
+    );
+  };
+
   const renderContent = () => {
     if (loading) {
       return (
@@ -562,6 +643,8 @@ const App = () => {
         return renderDashboard(); // Por ahora usa el mismo componente
       case 'rl':
         return renderRLDashboard();
+      case 'inventory':
+        return renderInventoryDashboard();
       default:
         return renderDashboard();
     }

@@ -39,9 +39,15 @@ cd /app/dashboard
 python rl_dashboard.py &
 DASH_PID=$!
 
+# Iniciar dashboard de inventarios en background
+echo "📦 Iniciando dashboard de inventarios..."
+python inventory_dashboard.py &
+INV_DASH_PID=$!
+
 echo "✅ Componente RL de INVENTARIOS iniciado completamente"
 echo "📦 API RL Inventarios: http://localhost:5000"
 echo "📈 Dashboard RL: http://localhost:8050"
+echo "📊 Dashboard Inventarios: http://localhost:8051"
 
 # Mantener el contenedor corriendo
-wait $RL_API_PID $DASH_PID 
+wait $RL_API_PID $DASH_PID $INV_DASH_PID 

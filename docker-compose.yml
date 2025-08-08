@@ -276,7 +276,9 @@ services:
     container_name: ecommerce-rl
     ports:
       - "5000:5000"  # API RL
+      - "5001:5001"  # Inventory API
       - "8050:8050"  # Dashboard RL
+      - "8051:8051"  # Inventory Dashboard
     environment:
       - CASSANDRA_HOST=cassandra
       - CASSANDRA_PORT=9042
